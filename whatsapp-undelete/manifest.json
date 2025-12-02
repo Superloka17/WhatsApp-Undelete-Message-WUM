@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "WhatsApp Undelete - Message Recovery",
+  "version": "3.0",
+  "description": "Recover and view deleted WhatsApp messages you've already seen",
+  "icons": {
+    "16": "icons/icon48.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon48.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "View Deleted Messages",
+    "default_icon": {
+      "16": "icons/icon48.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://web.whatsapp.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "permissions": [
+    "storage",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://web.whatsapp.com/*"
+  ]
+}

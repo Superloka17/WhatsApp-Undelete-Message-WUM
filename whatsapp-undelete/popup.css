@@ -1,0 +1,152 @@
+body {
+  width: 420px;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #111b21;
+  color: #e9edef;
+  max-height: 600px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  padding: 14px 16px;
+  background: #202c33;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #303c42;
+  flex-shrink: 0;
+}
+
+h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.header-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+button {
+  background: #35444d;
+  color: #8696a0;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s, color 0.2s;
+  font-weight: 500;
+}
+
+button:hover { 
+  background: #465a64; 
+  color: #e9edef;
+}
+
+#download {
+  background: #00a884;
+  color: #fff;
+}
+
+#download:hover {
+  background: #00c895;
+}
+
+#download svg {
+  width: 14px;
+  height: 14px;
+}
+
+.stats {
+  padding: 10px 16px;
+  background: #182229;
+  border-bottom: 1px solid #303c42;
+  font-size: 13px;
+  color: #8696a0;
+  display: none;
+  flex-shrink: 0;
+}
+
+.stats.visible {
+  display: block;
+}
+
+#list {
+  overflow-y: auto;
+  flex: 1;
+}
+
+#empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: #8696a0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.message {
+  padding: 14px 16px;
+  border-bottom: 1px solid #303c42;
+  background: #182229;
+  transition: background 0.2s;
+}
+
+.message:hover { 
+  background: #202c33; 
+}
+
+.message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.chat-name {
+  font-size: 13px;
+  color: #00bfa6;
+  font-weight: 500;
+}
+
+.time {
+  font-size: 11px;
+  color: #667781;
+}
+
+.text {
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: break-word;
+  background: #ffeb3b22;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border-left: 3px solid #ffeb3b;
+  margin: 6px 0;
+  color: #e9edef;
+}
+
+/* Scrollbar styling */
+#list::-webkit-scrollbar {
+  width: 6px;
+}
+
+#list::-webkit-scrollbar-track {
+  background: #111b21;
+}
+
+#list::-webkit-scrollbar-thumb {
+  background: #35444d;
+  border-radius: 3px;
+}
+
+#list::-webkit-scrollbar-thumb:hover {
+  background: #465a64;
+}

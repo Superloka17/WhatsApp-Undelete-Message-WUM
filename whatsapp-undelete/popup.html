@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Deleted Messages</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="header">
+    <h2>Deleted Messages</h2>
+    <div class="header-buttons">
+      <button id="download" title="Download all deleted messages">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        Download
+      </button>
+      <button id="clear">Clear All</button>
+    </div>
+  </div>
+  <div id="stats" class="stats"></div>
+  <div id="list"></div>
+  <div id="empty">No deleted messages yet.<br>They will appear here when someone deletes one you saw.</div>
+  <script src="popup.js"></script>
+</body>
+</html>
