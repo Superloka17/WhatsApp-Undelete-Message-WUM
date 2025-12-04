@@ -5,11 +5,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const clearBtn = document.getElementById('clear');
   const downloadBtn = document.getElementById('download');
 
+  let lastDataHash = '';
+
   function render() {
     chrome.storage.local.get(null, (items) => {
       const entries = Object.entries(items)
         .filter(([key]) => key.startsWith('deleted_'))
         .sort((a, b) => b[1].timestamp - a[1].timestamp);
+
+      // Create hash to detect changes
+      const currentHash = JSON.stringify(entries.map(([k, v]) => k + v.timestamp));
+      
+      // Only re-render if data changed
+      if (currentHash === lastDataHash && entries.length > 0) {
+        return;
+      }
+      
+      lastDataHash = currentHash;
 
       if (entries.length === 0) {
         list.innerHTML = '';
@@ -55,6 +67,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Download functionality
   downloadBtn.onclick = () => {
+    // Check if downloads API is available
+    if (!chrome.downloads) {
+      alert('Downloads API not available. Please check extension permissions.');
+      return;
+    }
+
     chrome.storage.local.get(null, (items) => {
       const entries = Object.entries(items)
         .filter(([key]) => key.startsWith('deleted_'))
@@ -113,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
-  // Download as CSV functionality (alternative)
+  // Download as CSV functionality
   function downloadAsCSV() {
     chrome.storage.local.get(null, (items) => {
       const entries = Object.entries(items)
@@ -161,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Add keyboard shortcut: Ctrl/Cmd + Shift + D to download
+  // Keyboard shortcut: Ctrl/Cmd + Shift + D to download
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'D') {
       e.preventDefault();
@@ -185,6 +203,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Auto-refresh every 3s when popup is open
   setInterval(render, 3000);
   
-  // Expose CSV download (you can add another button for this if needed)
+  // Expose CSV download
   window.downloadAsCSV = downloadAsCSV;
 });
