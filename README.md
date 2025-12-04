@@ -29,3 +29,4 @@ Limitations:
 - Works only on WhatsApp Web (https://web.whatsapp.com)
 
 Built with vanilla JavaScript and Chrome Extension Manifest V3. (more features and updates to come in the future)
+# My test change - just practicing Git
