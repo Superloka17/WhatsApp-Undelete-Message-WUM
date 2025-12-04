@@ -1,3 +1,4 @@
+// -*- coding: utf-8 -*-
 // WhatsApp Undelete - Clean Version (Only New Messages)
 (function () {
   'use strict';
