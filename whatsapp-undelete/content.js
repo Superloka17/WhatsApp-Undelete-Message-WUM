@@ -332,26 +332,19 @@
       deletedMessages.forEach(([key, data]) => {
         const msgId = key.replace('deleted_', '');
         
-        // Strategy 1: Try exact ID match
-        let messageEl = document.querySelector(`[data-id="${msgId}"]`);
+        // Try to find the EXACT message by its ID
+        const messageEl = document.querySelector(`[data-id="${msgId}"]`);
         
-        // Strategy 2: Scan all messages for deleted indicators
-        if (!messageEl) {
-          const allMessages = document.querySelectorAll('[data-id]');
-          allMessages.forEach(el => {
-            if (hasDeletedIndicator(el) && !el.dataset.restored) {
-              messageEl = el;
-            }
-          });
-        }
-        
-        if (messageEl) {
+        if (messageEl && !messageEl.dataset.restored) {
+          // Only restore if it has deleted indicator or was previously marked as deleted
           if (hasDeletedIndicator(messageEl) || messageEl.dataset.wasDeleted === 'true') {
             restoreVisually(messageEl, data.text);
             messageEl.dataset.wasDeleted = 'true';
             restoredCount++;
-            console.log(`✅ Restored: "${data.text.substring(0, 40)}..."`);
+            console.log(`✅ Restored ID ${msgId.substring(0, 30)}...: "${data.text.substring(0, 40)}..."`);
           }
+        } else if (!messageEl) {
+          console.log(`⚠️ Message ID not found in DOM: ${msgId.substring(0, 30)}...`);
         }
       });
 
@@ -370,17 +363,20 @@
       
       deletedMessages.forEach(([key, data]) => {
         const msgId = key.replace('deleted_', '');
+        
+        // Only look for the EXACT message by ID
         const messageEl = document.querySelector(`[data-id="${msgId}"]`);
         
-        if (messageEl) {
+        if (messageEl && messageEl.dataset.wasDeleted === 'true') {
+          // Check if restoration is missing
           const hasBadge = messageEl.querySelector('.undelete-recovery-badge');
           const hasRecoveredSpan = messageEl.querySelector('[data-recovered="true"]');
-          const wasDeleted = messageEl.dataset.wasDeleted === 'true';
           
-          if (wasDeleted && !hasBadge && !hasRecoveredSpan) {
+          if (!hasBadge && !hasRecoveredSpan) {
+            // Restoration was removed, re-apply it
             messageEl.dataset.restored = 'false';
             restoreVisually(messageEl, data.text);
-            console.log('🔄 Re-applied restoration for message');
+            console.log(`🔄 Re-applied restoration for: "${data.text.substring(0, 30)}..."`);
           }
         }
       });
