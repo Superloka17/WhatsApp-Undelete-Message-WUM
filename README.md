@@ -28,4 +28,4 @@ Limitations:
 - Must see the message before it's deleted for it to be cached
 - Works only on WhatsApp Web (https://web.whatsapp.com)
 
-Built with vanilla JavaScript and Chrome Extension Manifest V3. (more features and updates to come in the future.)
+Built with vanilla JavaScript and Chrome Extension Manifest V3. (more features and updates to come in the future...)
