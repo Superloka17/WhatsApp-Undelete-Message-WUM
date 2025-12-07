@@ -1,4 +1,4 @@
-// WhatsApp Undelete - Fixed Version with Persistent Restoration
+// WhatsApp Undelete - With Toggle Control
 (function () {
   'use strict';
 
@@ -8,6 +8,23 @@
   const messageCache = new Map();
   let cacheCount = 0;
   let isReady = false;
+  let messageRecoveryEnabled = true; // Can be toggled
+
+  // Load message recovery setting
+  chrome.storage.local.get(['enableMessageRecovery'], (result) => {
+    messageRecoveryEnabled = result.enableMessageRecovery !== false; // Default to true
+    console.log(`🔓 Message recovery: ${messageRecoveryEnabled ? 'ENABLED ✅' : 'DISABLED ⏸️'}`);
+  });
+
+  // Listen for toggle from popup
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'toggleMessageRecovery') {
+      messageRecoveryEnabled = message.enabled;
+      console.log(`🔓 Message recovery ${messageRecoveryEnabled ? 'ENABLED ✅' : 'DISABLED ⏸️'}`);
+      sendResponse({ success: true });
+    }
+    return true;
+  });
 
   // Deleted message indicators (fixed UTF-8 encoding)
   const deletedIndicators = [
@@ -115,6 +132,7 @@
 
   // ===== MAIN PROCESSING =====
   function processMessage(messageElement, isNewMessage = true) {
+    if (!messageRecoveryEnabled) return; // Skip if disabled
     if (!isReady && isNewMessage) return;
 
     try {
@@ -124,7 +142,7 @@
       const isDeleted = hasDeletedIndicator(messageElement);
       const messageText = extractMessageText(messageElement);
 
-      // Case 1: Normal NEW message - cache it with BOTH id and fingerprint
+      // Case 1: Normal NEW message - cache it
       if (messageText && !isDeleted && isNewMessage) {
         const fingerprint = getMessageFingerprint(messageElement);
         
@@ -146,19 +164,17 @@
         }
       }
       
-      // Case 2: Deleted message detected - try multiple matching strategies
+      // Case 2: Deleted message detected
       else if (isDeleted) {
         let cached = messageCache.get(msgId);
         let matchMethod = 'exact ID';
         
-        // Strategy 1: Try fingerprint
         if (!cached) {
           const fingerprint = getMessageFingerprint(messageElement);
           cached = messageCache.get(fingerprint);
           if (cached) matchMethod = 'fingerprint';
         }
         
-        // Strategy 2: Try partial ID match
         if (!cached) {
           const baseId = msgId.split('_')[0] + '_' + msgId.split('_')[1];
           for (const [cachedId, data] of messageCache.entries()) {
@@ -171,7 +187,6 @@
           }
         }
         
-        // Strategy 3: Try matching by position
         if (!cached) {
           const allMessages = Array.from(document.querySelectorAll('[data-id]'));
           const currentIndex = allMessages.indexOf(messageElement);
@@ -200,7 +215,6 @@
         } else {
           console.log(`%c⚠️ Deleted message NOT in cache`, "color: orange; font-weight: bold;");
           console.log(`   ID: ${msgId.substring(0, 40)}...`);
-          console.log(`   Cache size: ${messageCache.size / 2} messages`);
         }
       }
 
@@ -211,6 +225,8 @@
 
   // ===== SAVE TO STORAGE =====
   function saveToStorage(msgId, text, chatName) {
+    if (!messageRecoveryEnabled) return; // Don't save if disabled
+    
     chrome.storage.local.set({
       [`deleted_${msgId}`]: {
         text: text,
@@ -233,7 +249,8 @@
 
   // ===== VISUAL RESTORATION =====
   function restoreVisually(messageElement, originalText) {
-    // Check if already restored
+    if (!messageRecoveryEnabled) return; // Don't restore if disabled
+    
     if (messageElement.dataset.restored === 'true') {
       console.log('⏭️ Message already restored, skipping');
       return;
@@ -245,10 +262,8 @@
     allSpans.forEach(span => {
       const spanText = (span.innerText || span.textContent || '').trim();
       if (isDeletedMessage(spanText) && !span.dataset.recovered) {
-        // Replace text
         span.innerText = `🔓 ${originalText}`;
         
-        // Style it with !important
         span.style.cssText = `
           background: linear-gradient(135deg, #ffeb3b33 0%, #ff980033 100%) !important;
           border-left: 4px solid #ffeb3b !important;
@@ -269,7 +284,6 @@
       }
     });
 
-    // Fallback: Add a permanent notification badge
     if (!restored) {
       const existingBadge = messageElement.querySelector('.undelete-recovery-badge');
       if (!existingBadge) {
@@ -308,7 +322,6 @@
       }
     }
     
-    // Mark element as restored
     if (restored) {
       messageElement.dataset.restored = 'true';
       messageElement.dataset.wasDeleted = 'true';
@@ -316,8 +329,13 @@
     }
   }
 
-  // ===== RESTORE DELETED MESSAGES FROM STORAGE =====
+  // ===== RESTORE FROM STORAGE =====
   function restoreDeletedMessagesFromStorage() {
+    if (!messageRecoveryEnabled) {
+      console.log('⏸️ Message recovery disabled, skipping restoration');
+      return;
+    }
+    
     chrome.storage.local.get(null, (items) => {
       const deletedMessages = Object.entries(items).filter(([key]) => key.startsWith('deleted_'));
       
@@ -331,52 +349,45 @@
 
       deletedMessages.forEach(([key, data]) => {
         const msgId = key.replace('deleted_', '');
-        
-        // Try to find the EXACT message by its ID
         const messageEl = document.querySelector(`[data-id="${msgId}"]`);
         
         if (messageEl && !messageEl.dataset.restored) {
-          // Only restore if it has deleted indicator or was previously marked as deleted
           if (hasDeletedIndicator(messageEl) || messageEl.dataset.wasDeleted === 'true') {
             restoreVisually(messageEl, data.text);
             messageEl.dataset.wasDeleted = 'true';
             restoredCount++;
             console.log(`✅ Restored ID ${msgId.substring(0, 30)}...: "${data.text.substring(0, 40)}..."`);
           }
-        } else if (!messageEl) {
-          console.log(`⚠️ Message ID not found in DOM: ${msgId.substring(0, 30)}...`);
         }
       });
 
       if (restoredCount > 0) {
         console.log(`%c✓ Restored ${restoredCount} messages!`, "color: #4CAF50; font-weight: bold;");
       } else {
-        console.log('ℹ️ No messages needed restoration (might be in different chat)');
+        console.log('ℹ️ No messages needed restoration');
       }
     });
   }
 
   // ===== RE-APPLY RESTORATIONS =====
   function reapplyRestorations() {
+    if (!messageRecoveryEnabled) return;
+    
     chrome.storage.local.get(null, (items) => {
       const deletedMessages = Object.entries(items).filter(([key]) => key.startsWith('deleted_'));
       
       deletedMessages.forEach(([key, data]) => {
         const msgId = key.replace('deleted_', '');
-        
-        // Only look for the EXACT message by ID
         const messageEl = document.querySelector(`[data-id="${msgId}"]`);
         
         if (messageEl && messageEl.dataset.wasDeleted === 'true') {
-          // Check if restoration is missing
           const hasBadge = messageEl.querySelector('.undelete-recovery-badge');
           const hasRecoveredSpan = messageEl.querySelector('[data-recovered="true"]');
           
           if (!hasBadge && !hasRecoveredSpan) {
-            // Restoration was removed, re-apply it
             messageEl.dataset.restored = 'false';
             restoreVisually(messageEl, data.text);
-            console.log(`🔄 Re-applied restoration for: "${data.text.substring(0, 30)}..."`);
+            console.log(`🔄 Re-applied: "${data.text.substring(0, 30)}..."`);
           }
         }
       });
@@ -387,6 +398,11 @@
   let observer;
 
   function startObserver() {
+    if (!messageRecoveryEnabled) {
+      console.log('⏸️ Message recovery disabled, observer not started');
+      return;
+    }
+    
     const chatArea = document.querySelector('#main') || 
                      document.querySelector('[data-testid="conversation-panel-body"]') ||
                      document.body;
@@ -394,6 +410,8 @@
     console.log(`👁️ Observer started - watching for NEW messages only`);
 
     observer = new MutationObserver((mutations) => {
+      if (!messageRecoveryEnabled) return; // Check status on each mutation
+      
       mutations.forEach(mutation => {
         if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
           mutation.addedNodes.forEach(node => {
@@ -430,9 +448,11 @@
     console.log(`%c✓ Ready! Send new messages to start caching...`, "color: #4CAF50; font-weight: bold;");
   }
 
-  // ===== PERIODIC DELETION CHECK =====
+  // ===== PERIODIC CHECK =====
   function startPeriodicCheck() {
     setInterval(() => {
+      if (!messageRecoveryEnabled) return;
+      
       messageCache.forEach((data, msgId) => {
         const messageEl = document.querySelector(`[data-id="${msgId}"]`);
         if (messageEl && hasDeletedIndicator(messageEl)) {
@@ -457,7 +477,6 @@
         startObserver();
         startPeriodicCheck();
         
-        // Restore deleted messages from storage
         setTimeout(() => {
           restoreDeletedMessagesFromStorage();
         }, 3000);
@@ -503,12 +522,15 @@
       uniqueMessages.forEach((data, id) => {
         console.log(`  - ID: ${id.substring(0, 40)}...`);
         console.log(`    Text: "${data.text.substring(0, 40)}..."`);
-        console.log(`    Fingerprint: ${data.fingerprint}`);
       });
     },
-    restoreNow: restoreDeletedMessagesFromStorage
+    restoreNow: restoreDeletedMessagesFromStorage,
+    status: () => {
+      console.log(`Message Recovery: ${messageRecoveryEnabled ? 'ENABLED ✅' : 'DISABLED ⏸️'}`);
+      console.log(`Cached messages: ${messageCache.size / 2}`);
+    }
   };
 
-  console.log('%cℹ️ Debug: Type "whatsappDebug.restoreNow()" to manually restore messages', 'color: #00bcd4;');
+  console.log('%cℹ️ Debug: Type "whatsappDebug.status()" to check status', 'color: #00bcd4;');
 
 })();
