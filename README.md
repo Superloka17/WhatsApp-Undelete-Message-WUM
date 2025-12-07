@@ -15,14 +15,6 @@ Features:
 - Persistent storage - recovered messages survive page refreshes
 - Privacy-focused - only caches messages you've already seen
 
-# Ghost Mode — Read Messages Without Sending Blue Ticks
-
-- **No blue ticks ever** — the sender will only ever see double gray checks (delivered), even if you read the entire conversation.
-- Works in **1-on-1 chats** and **group chats** alike.
-- 100 % silent — WhatsApp servers never receive the “read” receipt.
-- Fully toggleable — enable or disable it anytime from the extension popup.
-- No impact on your ability to send or receive messages.
-
 How It Works:
 1. Extension monitors WhatsApp Web for new messages
 2. When a message appears, it's cached with a unique ID
@@ -35,5 +27,13 @@ Limitations:
 - Only works for messages sent AFTER the extension is active
 - Must see the message before it's deleted for it to be cached
 - Works only on WhatsApp Web (https://web.whatsapp.com)
+
+# Ghost Mode — Read Messages Without Sending Blue Ticks
+
+- **No blue ticks ever** — the sender will only ever see double gray checks (delivered), even if you read the entire conversation.
+- Works in **1-on-1 chats** and **group chats** alike.
+- 100 % silent — WhatsApp servers never receive the “read” receipt.
+- Fully toggleable — enable or disable it anytime from the extension popup.
+- No impact on your ability to send or receive messages.
 
 Built with vanilla JavaScript and Chrome Extension Manifest V3. (more features and updates to come in the future...)
