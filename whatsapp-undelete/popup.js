@@ -5,22 +5,71 @@ document.addEventListener('DOMContentLoaded', () => {
   const clearBtn = document.getElementById('clear');
   const downloadBtn = document.getElementById('download');
 
+  // Toggles
+  const hideTypingToggle = document.getElementById('hideTyping');
+  const hideReceiptsToggle = document.getElementById('hideReceipts');
+
   let lastDataHash = '';
 
+  // ====================== LOAD SAVED STATES ======================
+  chrome.storage.local.get(['hideTypingEnabled', 'hideReadReceiptsEnabled'], (result) => {
+    if (hideTypingToggle) {
+      hideTypingToggle.checked = result.hideTypingEnabled !== false;
+    }
+    if (hideReceiptsToggle) {
+      hideReceiptsToggle.checked = result.hideReadReceiptsEnabled !== false;
+    }
+  });
+
+  // ====================== SEND MESSAGE TO CONTENT SCRIPT ======================
+  function sendToContent(action, enabled) {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]) {
+        chrome.tabs.sendMessage(tabs[0].id, { action, enabled });
+      }
+    });
+  }
+
+  // ====================== TYPING INDICATOR TOGGLE ======================
+  if (hideTypingToggle) {
+    hideTypingToggle.addEventListener('change', (e) => {
+      const enabled = e.target.checked;
+      chrome.storage.local.set({ hideTypingEnabled: enabled });
+      sendToContent('toggleTypingBlocker', enabled);
+    });
+  }
+
+  // ====================== BLUE TICKS (READ RECEIPTS) TOGGLE — BULLETPROOF ======================
+  if (hideReceiptsToggle) {
+    // This fixes the "toggle jumps back" bug forever
+    hideReceiptsToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+
+      const enabled = hideReceiptsToggle.checked;
+      chrome.storage.local.set({ hideReadReceiptsEnabled: enabled });
+      sendToContent('toggleReadReceipts', enabled);
+
+      console.log(`Ghost Mode: ${enabled ? 'ON (no blue ticks)' : 'OFF'}`);
+    });
+
+    // Also allow normal change event for keyboard users
+    hideReceiptsToggle.addEventListener('change', (e) => {
+      const enabled = e.target.checked;
+      chrome.storage.local.set({ hideReadReceiptsEnabled: enabled });
+      sendToContent('toggleReadReceipts', enabled);
+    });
+  }
+
+  // ====================== RENDER DELETED MESSAGES ======================
   function render() {
     chrome.storage.local.get(null, (items) => {
       const entries = Object.entries(items)
         .filter(([key]) => key.startsWith('deleted_'))
         .sort((a, b) => b[1].timestamp - a[1].timestamp);
 
-      // Create hash to detect changes
       const currentHash = JSON.stringify(entries.map(([k, v]) => k + v.timestamp));
-      
-      // Only re-render if data changed
-      if (currentHash === lastDataHash && entries.length > 0) {
-        return;
-      }
-      
+      if (currentHash === lastDataHash && entries.length > 0) return;
       lastDataHash = currentHash;
 
       if (entries.length === 0) {
@@ -32,27 +81,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
       empty.style.display = 'none';
       stats.classList.add('visible');
-      stats.innerHTML = `📊 Total deleted messages: <strong>${entries.length}</strong>`;
+      stats.innerHTML = `Total recovered: <strong>${entries.length}</strong> deleted message${entries.length > 1 ? 's' : ''}`;
 
       list.innerHTML = entries.map(([_, data]) => {
         const date = new Date(data.timestamp);
-        const dateStr = date.toLocaleDateString('en-US', { 
-          month: 'short', 
-          day: 'numeric', 
-          year: 'numeric' 
-        });
-        const timeStr = date.toLocaleTimeString('en-US', { 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        });
+        const dateStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+        const timeStr = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
         return `
           <div class="message">
             <div class="message-header">
               <div class="chat-name">${escapeHtml(data.chatName || 'Unknown Chat')}</div>
-              <div class="time">${dateStr} at ${timeStr}</div>
+              <div class="time">${dateStr} · ${timeStr}</div>
             </div>
-            <div class="text">${escapeHtml(data.text)}</div>
+            <div class="text">${escapeHtml(data.text || '(empty)')}</div>
           </div>
         `;
       }).join('');
@@ -65,144 +107,51 @@ document.addEventListener('DOMContentLoaded', () => {
     return div.innerHTML;
   }
 
-  // Download functionality
+  // ====================== DOWNLOAD ======================
   downloadBtn.onclick = () => {
-    // Check if downloads API is available
-    if (!chrome.downloads) {
-      alert('Downloads API not available. Please check extension permissions.');
-      return;
-    }
-
     chrome.storage.local.get(null, (items) => {
       const entries = Object.entries(items)
-        .filter(([key]) => key.startsWith('deleted_'))
+        .filter(([k]) => k.startsWith('deleted_'))
         .sort((a, b) => b[1].timestamp - a[1].timestamp);
 
-      if (entries.length === 0) {
-        alert('No deleted messages to download');
-        return;
-      }
+      if (entries.length === 0) return alert('No deleted messages to download');
 
-      // Generate download filename with current date
       const now = new Date();
-      const filename = `WhatsApp_Deleted_Messages_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}.txt`;
-
-      // Create text content
-      let content = `WhatsApp Deleted Messages Export\n`;
-      content += `Generated: ${now.toLocaleString()}\n`;
-      content += `Total Messages: ${entries.length}\n`;
-      content += `${'='.repeat(80)}\n\n`;
-
-      entries.forEach(([_, data], index) => {
-        const date = new Date(data.timestamp);
-        const dateStr = date.toLocaleString();
-        
-        content += `Message #${index + 1}\n`;
-        content += `Chat: ${data.chatName || 'Unknown Chat'}\n`;
-        content += `Date: ${dateStr}\n`;
-        content += `Text: ${data.text}\n`;
-        content += `${'-'.repeat(80)}\n\n`;
+      const filename = `WhatsApp_Deleted_${now.toISOString().slice(0,10)}.txt`;
+      let content = `WhatsApp Deleted Messages — ${now.toLocaleString()}\n\n`;
+      entries.forEach(([_, d], i) => {
+        content += `${i+1}. ${d.chatName || 'Unknown'} — ${new Date(d.timestamp).toLocaleString()}\n`;
+        content += `"${d.text}"\n\n`;
       });
 
-      // Create download
       const blob = new Blob([content], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
-      
-      chrome.downloads.download({
-        url: url,
-        filename: filename,
-        saveAs: true
-      }, (downloadId) => {
-        if (chrome.runtime.lastError) {
-          console.error('Download error:', chrome.runtime.lastError);
-          
-          // Fallback: use data URL
-          const link = document.createElement('a');
-          link.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(content);
-          link.download = filename;
-          link.click();
-        } else {
-          console.log('Download started:', downloadId);
-        }
-        
-        // Clean up
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-      });
+      chrome.downloads.download({ url, filename, saveAs: true });
     });
   };
 
-  // Download as CSV functionality
-  function downloadAsCSV() {
-    chrome.storage.local.get(null, (items) => {
-      const entries = Object.entries(items)
-        .filter(([key]) => key.startsWith('deleted_'))
-        .sort((a, b) => b[1].timestamp - a[1].timestamp);
-
-      if (entries.length === 0) {
-        alert('No deleted messages to download');
-        return;
-      }
-
-      const now = new Date();
-      const filename = `WhatsApp_Deleted_Messages_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}.csv`;
-
-      // Create CSV content
-      let csvContent = 'Chat Name,Date,Time,Message\n';
-      
-      entries.forEach(([_, data]) => {
-        const date = new Date(data.timestamp);
-        const dateStr = date.toLocaleDateString();
-        const timeStr = date.toLocaleTimeString();
-        
-        // Escape commas and quotes in CSV
-        const escapeCsv = (str) => {
-          if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-            return `"${str.replace(/"/g, '""')}"`;
-          }
-          return str;
-        };
-        
-        csvContent += `${escapeCsv(data.chatName || 'Unknown')},${dateStr},${timeStr},${escapeCsv(data.text)}\n`;
+  // ====================== CLEAR ALL ======================
+  clearBtn.onclick = () => {
+    if (confirm('Delete ALL recovered messages permanently?')) {
+      chrome.storage.local.get(null, (items) => {
+        const keys = Object.keys(items).filter(k => k.startsWith('deleted_'));
+        chrome.storage.local.remove(keys, () => {
+          render();
+          alert(`${keys.length} messages cleared`);
+        });
       });
+    }
+  };
 
-      // Create download
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      
-      chrome.downloads.download({
-        url: url,
-        filename: filename,
-        saveAs: true
-      }, () => {
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-      });
-    });
-  }
+  // ====================== AUTO REFRESH ======================
+  render();
+  setInterval(render, 3000);
 
-  // Keyboard shortcut: Ctrl/Cmd + Shift + D to download
+  // Keyboard shortcut
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'D') {
       e.preventDefault();
       downloadBtn.click();
     }
   });
-
-  // Clear all functionality
-  clearBtn.onclick = () => {
-    if (confirm('Delete all saved deleted messages?\n\nThis will permanently remove them from the extension.')) {
-      chrome.storage.local.get(null, (items) => {
-        const keysToRemove = Object.keys(items).filter(k => k.startsWith('deleted_'));
-        chrome.storage.local.remove(keysToRemove, render);
-      });
-    }
-  };
-
-  // Initial render
-  render();
-  
-  // Auto-refresh every 3s when popup is open
-  setInterval(render, 3000);
-  
-  // Expose CSV download
-  window.downloadAsCSV = downloadAsCSV;
 });
